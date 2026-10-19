@@ -1,0 +1,750 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Idea Orbit</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  /* Layout: wide orbit map on the left (sun at the centre of a time-by-place grid), weights panel on the right; stacks below 900px. */
+  :root {
+    --bg: #0a0d1c;
+    --panel: #10142a;
+    --line: #232a50;
+    --grid: #27305c;
+    --grid-strong: #3a4789;
+    --ink: #e9ebf9;
+    --ink-dim: #9aa2cc;
+    --sun: #ffb340;
+    --goal: #ffd98a;
+    --feed: #4fd1c0;
+    --park: #9096c8;
+    --sel: rgba(255, 217, 138, 0.07);
+    --font-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", sans-serif;
+    --font-body: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+    color-scheme: dark;
+  }
+
+  html, body { background: var(--bg); }
+  body { margin: 0; }
+
+  body {
+    color: var(--ink);
+    font: 400 15px/1.5 var(--font-body);
+    padding-block: 20px 44px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+
+  .wrap { max-width: 1180px; margin: 0 auto; }
+
+  :focus-visible { outline: 2px solid var(--sun); outline-offset: 2px; }
+
+  .eyebrow {
+    font: 500 11px/1.2 var(--font-mono);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+    margin: 0;
+  }
+
+  header { margin-bottom: 22px; }
+  h1 {
+    font: 700 clamp(2.1rem, 6vw, 3.5rem)/1 var(--font-display);
+    letter-spacing: -0.025em;
+    margin: 10px 0 12px;
+    text-wrap: balance;
+  }
+  .lede { max-width: 62ch; color: var(--ink-dim); margin: 0; }
+
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.55fr) minmax(300px, 1fr);
+    gap: 28px;
+    align-items: start;
+  }
+  .stage, .panel { min-width: 0; }
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: minmax(0, 1fr); }
+  }
+
+  #map {
+    display: block;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--bg);
+    touch-action: manipulation;
+  }
+  @media (max-width: 640px) {
+    #map { aspect-ratio: 1 / 1.2; }
+  }
+
+  .axes { margin: 10px 0 0; font: 400 12px/1.5 var(--font-mono); color: var(--ink-dim); }
+
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  .btn {
+    font: 500 14px/1 var(--font-body);
+    color: var(--ink);
+    background: transparent;
+    border: 1px solid var(--grid-strong);
+    border-radius: 4px;
+    padding: 10px 14px;
+    cursor: pointer;
+  }
+  .btn:hover { background: var(--panel); }
+  .btn.primary { background: var(--sun); border-color: var(--sun); color: #2a1700; font-weight: 600; }
+  .btn.primary:hover { background: #ffc566; }
+
+  .readout {
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+    min-height: 9rem;
+  }
+  .r-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .r-name { font: 700 1.45rem/1.1 var(--font-display); letter-spacing: -0.01em; }
+  .tag {
+    font: 500 11px/1 var(--font-mono);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 5px 7px;
+    border: 1px solid currentColor;
+    border-radius: 3px;
+  }
+  .r-note { margin: 8px 0 0; color: var(--ink-dim); max-width: 60ch; }
+  .r-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 14px 0 0; max-width: 460px; }
+  .r-stats dt { font: 500 10.5px/1.2 var(--font-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-dim); }
+  .r-stats dd { margin: 4px 0 0; font: 600 1.35rem/1 var(--font-display); font-variant-numeric: tabular-nums; }
+
+  .headline { display: flex; align-items: baseline; gap: 12px; margin: 10px 0 12px; }
+  .big { font: 700 2.6rem/1 var(--font-display); letter-spacing: -0.03em; color: var(--goal); font-variant-numeric: tabular-nums; }
+  .headline-text { color: var(--ink-dim); max-width: 26ch; }
+
+  .bar { display: flex; height: 8px; border-radius: 2px; overflow: hidden; background: var(--line); }
+  .bar span { display: block; height: 100%; transition: width 0.25s ease; }
+  #seg-goal { background: var(--goal); }
+  #seg-feeds { background: var(--feed); }
+  #seg-parked { background: var(--park); }
+
+  .legend { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 16px; font: 400 12px/1.4 var(--font-mono); color: var(--ink-dim); }
+  .legend li { display: flex; align-items: center; gap: 6px; }
+  .legend .sw { width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+  .note { margin: 10px 0 0; font-size: 12.5px; color: var(--ink-dim); max-width: 46ch; }
+
+  .group { margin-top: 24px; }
+  .group h2 { display: flex; justify-content: space-between; gap: 8px; margin: 0 0 4px; padding-bottom: 8px; border-bottom: 1px solid var(--grid-strong); }
+
+  .row {
+    display: grid;
+    grid-template-columns: 10px minmax(0, 1fr) 96px 40px 22px;
+    gap: 8px;
+    align-items: center;
+    padding: 5px 4px;
+    border-bottom: 1px solid var(--line);
+  }
+  .row[aria-current="true"] { background: var(--sel); }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--c); }
+  .name {
+    background: none; border: 0; color: inherit; font: inherit; text-align: left;
+    padding: 6px 0; cursor: pointer; min-width: 0;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .name:hover { color: var(--c); }
+  .row input[type="range"] { width: 100%; min-width: 0; accent-color: var(--c); margin: 0; }
+  .share { font: 400 12px/1 var(--font-mono); color: var(--ink-dim); text-align: right; font-variant-numeric: tabular-nums; }
+  .rm { background: none; border: 0; color: var(--ink-dim); font-size: 18px; line-height: 1; cursor: pointer; padding: 2px; }
+  .rm:hover { color: var(--ink); }
+
+  @media (max-width: 420px) {
+    .row { grid-template-columns: 10px minmax(0, 1fr) 84px 36px 20px; gap: 6px; }
+  }
+
+  .add { margin-top: 26px; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; }
+  .add input[type="text"], .add select {
+    font: 400 16px/1.2 var(--font-body);
+    color: var(--ink);
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 10px;
+    min-width: 0;
+  }
+  @media (max-width: 520px) {
+    .add { grid-template-columns: minmax(0, 1fr) auto; }
+    .add input[type="text"] { grid-column: 1 / -1; }
+  }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Attention map</p>
+    <h1>Idea Orbit</h1>
+    <p class="lede">You are the sun. Every idea orbits at a distance set by its weight, and heavier ideas bend the grid of weeks and places more.</p>
+  </header>
+
+  <div class="layout">
+    <section class="stage" aria-label="Orbit map">
+      <canvas id="map" role="img" aria-label="Mosab as the sun, with ideas orbiting over a grid of weeks and places. The panel lists every idea and its weight."></canvas>
+      <p class="axes">Across: twelve weeks from Oct 19. Down: where the week happens. Select an idea on the map or in the list.</p>
+
+      <div class="controls">
+        <button class="btn primary" id="btnPlay" type="button">Pause orbit</button>
+        <button class="btn" id="btnFocus" type="button">My focus now</button>
+        <button class="btn" id="btnEqual" type="button">Everything equal</button>
+      </div>
+
+      <div class="readout" aria-live="polite">
+        <div class="r-head">
+          <span class="r-name" id="rName"></span>
+          <span class="tag" id="rCat"></span>
+        </div>
+        <p class="r-note" id="rNote"></p>
+        <dl class="r-stats">
+          <div><dt>Weight</dt><dd id="rWeight"></dd></div>
+          <div><dt>Attention</dt><dd id="rShare"></dd></div>
+          <div><dt>Grid bend</dt><dd id="rBend"></dd></div>
+        </dl>
+      </div>
+    </section>
+
+    <aside class="panel" aria-label="Idea weights">
+      <p class="eyebrow">Where attention goes</p>
+      <div class="headline">
+        <span class="big" id="pct"></span>
+        <span class="headline-text">of your attention is on the two goals and what feeds them.</span>
+      </div>
+      <div class="bar" aria-hidden="true"><span id="seg-goal"></span><span id="seg-feeds"></span><span id="seg-parked"></span></div>
+      <ul class="legend" id="legend"></ul>
+      <p class="note">Attention share is each weight divided by the total of all weights. Grid bend compares an idea's pull with the heaviest idea right now.</p>
+
+      <div id="list"></div>
+
+      <form class="add" id="addForm">
+        <label class="sr-only" for="newName">New idea</label>
+        <input type="text" id="newName" maxlength="28" placeholder="Add an idea" autocomplete="off">
+        <label class="sr-only" for="newCat">Where it belongs</label>
+        <select id="newCat">
+          <option value="parked">Parked</option>
+          <option value="feeds">Feeds the goals</option>
+          <option value="goal">A goal</option>
+        </select>
+        <button class="btn" type="submit">Add</button>
+      </form>
+    </aside>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var START = new Date(2026, 9, 19);
+  var WEEKS = 12, ROWS = 8, VS = 36, HS = 56;
+  var SPAN_DAYS = WEEKS * 7, INTERVIEW_DAY = 6;
+  var PLACES = ['Campus', 'Home', 'Online', 'Gym'];
+  var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  var TAU = Math.PI * 2;
+  var A = 0.003, SUN_M = 30, SUN_S2 = 0.0625;
+  var KEY = 'idea-orbit-v1';
+
+  var rootStyle = getComputedStyle(document.documentElement);
+  function tok(n) { return rootStyle.getPropertyValue(n).trim(); }
+  var COL = {
+    bg: tok('--bg'), grid: tok('--grid'), strong: tok('--grid-strong'),
+    ink: tok('--ink'), dim: tok('--ink-dim'), sun: tok('--sun')
+  };
+  var FONT_BODY = tok('--font-body');
+  var FONT_MONO = tok('--font-mono');
+  var FONT_DISPLAY = tok('--font-display');
+  var CATS = {
+    goal:   { label: 'The two goals',   short: 'Goal',   color: tok('--goal') },
+    feeds:  { label: 'Feeds the goals', short: 'Feeds',  color: tok('--feed') },
+    parked: { label: 'Parked',          short: 'Parked', color: tok('--park') }
+  };
+  var ORDER = ['goal', 'feeds', 'parked'];
+
+  var DEFAULTS = [
+    { id: 'grad',   name: 'Graduate',              cat: 'goal',   w: 9,  note: 'Final two semesters at PSU. After these terms, the IS492 co-op is the main thing left.' },
+    { id: 'job',    name: 'DevOps and cloud job',  cat: 'goal',   w: 10, note: 'The Tamara DevOps interview is about a week out. Terraform, Helm and Argo CD are the prep.' },
+    { id: 'ccp',    name: 'AWS Cloud Practitioner', cat: 'feeds', w: 8,  note: 'Still in progress. You were at slide 135 of 516 on Oct 14.' },
+    { id: 'cap',    name: 'Navigator capstone',    cat: 'feeds',  w: 6,  note: 'The student success platform you lead with your team.' },
+    { id: 'gym',    name: 'Gym and recovery',      cat: 'feeds',  w: 5,  note: 'Protected time. It keeps everything else running.' },
+    { id: 'lab',    name: 'Homelab',               cat: 'feeds',  w: 4,  note: 'Old desktop as a media server and the MSI laptop as a Linux lab for hands-on practice.' },
+    { id: 'po',     name: 'Product owner role',    cat: 'parked', w: 3,  note: 'An alternative path you are weighing against DevOps. It needs a decision date.' },
+    { id: 'web',    name: 'Web services',          cat: 'parked', w: 2,  note: 'Websites for small businesses in Riyadh.' },
+    { id: 'startup',name: 'AI agents startup',     cat: 'parked', w: 2,  note: 'The idea of starting an AI agents company in Saudi Arabia.' },
+    { id: 'fleet',  name: 'Agent fleet',           cat: 'parked', w: 2,  note: 'Your Telegram agents: Tony, Berlin, Warden, Bob and Nataly.' },
+    { id: 'wheel',  name: 'DropWheel',             cat: 'parked', w: 1,  note: 'Your free macOS menu-bar file converter.' },
+    { id: 'safe',   name: 'Safe in Saudi',         cat: 'parked', w: 1,  note: 'Wartime safety instructions for non-Arabic-speaking residents.' },
+    { id: 'fba',    name: 'Amazon FBA',            cat: 'parked', w: 1,  note: 'The plan to sell on Amazon.sa.' },
+    { id: 'nabd',   name: 'Nabd hackathon',        cat: 'parked', w: 1,  note: 'A predictive maintenance idea for the National Guard hackathon.' }
+  ];
+  var DEFAULT_W = {};
+  DEFAULTS.forEach(function (d) { DEFAULT_W[d.id] = d.w; });
+
+  function clampW(v) { return Math.max(1, Math.min(10, Math.round(Number(v) || 1))); }
+  function pct(f) { return Math.round(f * 100) + '%'; }
+  function rgba(hex, a) {
+    var n = parseInt(hex.slice(1), 16);
+    return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
+  }
+  function fmt(d) { return MONTHS[d.getMonth()] + ' ' + d.getDate(); }
+
+  var ideas = DEFAULTS.map(function (d, k) {
+    var o = { k: k, custom: false, theta: 0, r: 0, x: 0, y: 0, rad: 6, els: null };
+    for (var p in d) o[p] = d[p];
+    return o;
+  });
+
+  function targetR(i) {
+    var t = (i.w - 1) / 9;
+    return 0.9 - 0.68 * t + (((i.k * 37) % 7) - 3) * 0.005;
+  }
+
+  function load() {
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (!raw) return;
+      var s = JSON.parse(raw);
+      if (s.weights) ideas.forEach(function (i) {
+        if (typeof s.weights[i.id] === 'number') i.w = clampW(s.weights[i.id]);
+      });
+      if (Array.isArray(s.custom)) s.custom.forEach(function (c) {
+        if (!c || typeof c.name !== 'string') return;
+        var k = ideas.reduce(function (m, i) { return Math.max(m, i.k); }, 0) + 1;
+        ideas.push({
+          id: String(c.id), name: c.name.slice(0, 28), cat: CATS[c.cat] ? c.cat : 'parked',
+          w: clampW(c.w), note: 'Added by you.', custom: true, k: k,
+          theta: 0, r: 0, x: 0, y: 0, rad: 6, els: null
+        });
+      });
+    } catch (e) { /* storage can be unavailable; the page still works */ }
+  }
+  function save() {
+    try {
+      var weights = {}, custom = [];
+      ideas.forEach(function (i) {
+        if (i.custom) custom.push({ id: i.id, name: i.name, cat: i.cat, w: i.w });
+        else weights[i.id] = i.w;
+      });
+      localStorage.setItem(KEY, JSON.stringify({ weights: weights, custom: custom }));
+    } catch (e) { /* ignore */ }
+  }
+
+  load();
+  ideas.forEach(function (i) {
+    i.theta = (i.k * 2.399963) % TAU;
+    i.r = targetR(i);
+  });
+
+  var selId = 'job', hoverId = null;
+  var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var playing = !reduced, tAnim = 0;
+
+  /* ---------- canvas ---------- */
+  var canvas = document.getElementById('map');
+  var ctx = canvas.getContext('2d');
+  var W = 1, H = 1, L = { x: 0, y: 0, w: 1, h: 1, cx: 0, cy: 0, rx: 1, ry: 1, rn: 1, rn2: 1, k: 1, narrow: false };
+
+  function layout() {
+    var r = canvas.getBoundingClientRect();
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = Math.max(1, Math.round(r.width));
+    H = Math.max(1, Math.round(r.height));
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    var narrow = W < 560;
+    var left = narrow ? 54 : 70, top = 32, right = narrow ? 12 : 16, bottom = 34;
+    L.narrow = narrow;
+    L.x = left; L.y = top; L.w = W - left - right; L.h = H - top - bottom;
+    L.cx = L.x + L.w / 2; L.cy = L.y + L.h / 2;
+    L.rx = L.w / 2 * 0.9; L.ry = L.h / 2 * 0.9;
+    L.rn = Math.min(L.rx, L.ry); L.rn2 = L.rn * L.rn;
+    L.k = Math.max(0.75, L.rn / 300);
+  }
+  if (window.ResizeObserver) new ResizeObserver(layout).observe(canvas);
+  else window.addEventListener('resize', layout);
+  layout();
+
+  var out = { x: 0, y: 0 };
+  function warp(px, py, wells) {
+    var nx = (px - L.cx) / (L.w / 2), ny = (py - L.cy) / (L.h / 2);
+    var edge = Math.min(1, Math.max(Math.abs(nx), Math.abs(ny)));
+    var win = 1 - Math.pow(edge, 8);
+    var ox = 0, oy = 0;
+    for (var n = 0; n < wells.length; n++) {
+      var b = wells[n];
+      var dx = b.x - px, dy = b.y - py;
+      var f = A * b.m / ((dx * dx + dy * dy) / L.rn2 + b.s2);
+      if (f > 0.85) f = 0.85;
+      ox += dx * f; oy += dy * f;
+    }
+    out.x = px + ox * win;
+    out.y = py + oy * win;
+  }
+
+  function label(text, x, y, align, color, font) {
+    ctx.font = font;
+    ctx.textAlign = align;
+    ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = rgba(COL.bg, 0.85);
+    ctx.strokeText(text, x, y);
+    ctx.fillStyle = color;
+    ctx.fillText(text, x, y);
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = COL.bg;
+    ctx.fillRect(0, 0, W, H);
+
+    var n, j, s, g;
+    for (n = 0; n < ideas.length; n++) {
+      var q = ideas[n];
+      q.x = L.cx + Math.cos(q.theta) * q.r * L.rx;
+      q.y = L.cy + Math.sin(q.theta) * q.r * L.ry;
+    }
+    var wells = [{ x: L.cx, y: L.cy, m: SUN_M, s2: SUN_S2 }];
+    for (n = 0; n < ideas.length; n++) {
+      var sg = 0.09 + 0.012 * ideas[n].w;
+      wells.push({ x: ideas[n].x, y: ideas[n].y, m: ideas[n].w, s2: sg * sg });
+    }
+
+    /* soft wells under the grid */
+    ctx.save();
+    ctx.beginPath(); ctx.rect(L.x, L.y, L.w, L.h); ctx.clip();
+    g = ctx.createRadialGradient(L.cx, L.cy, 0, L.cx, L.cy, L.rn * 0.95);
+    g.addColorStop(0, rgba(COL.sun, 0.22)); g.addColorStop(1, rgba(COL.sun, 0));
+    ctx.fillStyle = g; ctx.fillRect(L.cx - L.rn, L.cy - L.rn, L.rn * 2, L.rn * 2);
+    for (n = 0; n < ideas.length; n++) {
+      var a = ideas[n], c = CATS[a.cat].color, gr = L.rn * (0.28 + 0.03 * a.w);
+      g = ctx.createRadialGradient(a.x, a.y, 0, a.x, a.y, gr);
+      g.addColorStop(0, rgba(c, 0.10 + 0.02 * a.w)); g.addColorStop(1, rgba(c, 0));
+      ctx.fillStyle = g; ctx.fillRect(a.x - gr, a.y - gr, gr * 2, gr * 2);
+    }
+    ctx.restore();
+
+    /* time (vertical) and place (horizontal) grid, bent by the wells */
+    ctx.lineWidth = 1;
+    for (j = 0; j <= WEEKS; j++) {
+      var x0 = L.x + L.w * j / WEEKS;
+      ctx.beginPath();
+      for (s = 0; s <= VS; s++) {
+        warp(x0, L.y + L.h * s / VS, wells);
+        if (s) ctx.lineTo(out.x, out.y); else ctx.moveTo(out.x, out.y);
+      }
+      ctx.strokeStyle = (j % 3 === 0) ? COL.strong : COL.grid;
+      ctx.stroke();
+    }
+    for (j = 0; j <= ROWS; j++) {
+      var y0 = L.y + L.h * j / ROWS;
+      ctx.beginPath();
+      for (s = 0; s <= HS; s++) {
+        warp(L.x + L.w * s / HS, y0, wells);
+        if (s) ctx.lineTo(out.x, out.y); else ctx.moveTo(out.x, out.y);
+      }
+      ctx.strokeStyle = (j % 2 === 0) ? COL.strong : COL.grid;
+      ctx.stroke();
+    }
+
+    /* interview day, bent with the grid */
+    var xi = L.x + L.w * INTERVIEW_DAY / SPAN_DAYS;
+    ctx.save();
+    ctx.setLineDash([4, 5]);
+    ctx.beginPath();
+    for (s = 0; s <= VS; s++) {
+      warp(xi, L.y + L.h * s / VS, wells);
+      if (s) ctx.lineTo(out.x, out.y); else ctx.moveTo(out.x, out.y);
+    }
+    ctx.strokeStyle = rgba(CATS.goal.color, 0.65);
+    ctx.stroke();
+    ctx.restore();
+    ctx.beginPath();
+    ctx.moveTo(xi, L.y - 17); ctx.lineTo(xi + 4.5, L.y - 12); ctx.lineTo(xi, L.y - 7); ctx.lineTo(xi - 4.5, L.y - 12); ctx.closePath();
+    ctx.fillStyle = CATS.goal.color; ctx.fill();
+    ctx.font = '500 10.5px ' + FONT_MONO;
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = CATS.goal.color;
+    ctx.fillText('interview ~Oct 25', xi + 10, L.y - 12);
+
+    /* axis labels: weeks along the bottom, places down the side */
+    ctx.font = '400 10.5px ' + FONT_MONO;
+    ctx.fillStyle = COL.dim;
+    ctx.textBaseline = 'middle';
+    for (j = 0; j <= WEEKS; j += 3) {
+      var d = new Date(START.getTime());
+      d.setDate(d.getDate() + 7 * j);
+      ctx.textAlign = j === 0 ? 'left' : (j === WEEKS ? 'right' : 'center');
+      ctx.fillText(fmt(d), L.x + L.w * j / WEEKS, L.y + L.h + 18);
+    }
+    ctx.textAlign = 'right';
+    for (j = 0; j < PLACES.length; j++) {
+      ctx.fillText(PLACES[j], L.x - 8, L.y + L.h * (2 * j + 1) / ROWS);
+    }
+
+    /* orbits */
+    ctx.lineWidth = 1;
+    for (n = 0; n < ideas.length; n++) {
+      var o = ideas[n];
+      ctx.beginPath();
+      ctx.ellipse(L.cx, L.cy, o.r * L.rx, o.r * L.ry, 0, 0, TAU);
+      ctx.strokeStyle = rgba(CATS[o.cat].color, o.id === selId ? 0.6 : 0.13);
+      ctx.stroke();
+    }
+
+    /* the sun */
+    var sr = 28 * L.k, pulse = 1 + 0.06 * Math.sin(tAnim * 1.3);
+    g = ctx.createRadialGradient(L.cx, L.cy, sr * 0.6, L.cx, L.cy, sr * 2.6 * pulse);
+    g.addColorStop(0, rgba(COL.sun, 0.5)); g.addColorStop(1, rgba(COL.sun, 0));
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(L.cx, L.cy, sr * 2.6 * pulse, 0, TAU); ctx.fill();
+    g = ctx.createRadialGradient(L.cx - sr * 0.3, L.cy - sr * 0.3, sr * 0.1, L.cx, L.cy, sr);
+    g.addColorStop(0, '#fff3d4'); g.addColorStop(1, COL.sun);
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(L.cx, L.cy, sr, 0, TAU); ctx.fill();
+    ctx.font = '700 ' + Math.max(10, Math.min(13, 12 * L.k)) + 'px ' + FONT_DISPLAY;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#2a1700';
+    ctx.fillText('Mosab', L.cx, L.cy + 1);
+
+    /* ideas, heaviest drawn last */
+    var sorted = ideas.slice().sort(function (p, r) { return p.w - r.w; });
+    for (n = 0; n < sorted.length; n++) {
+      var i = sorted[n];
+      var col = CATS[i.cat].color, rad = (3 + 2 * Math.sqrt(i.w)) * L.k;
+      i.rad = rad;
+      var sel = i.id === selId, hov = i.id === hoverId;
+      g = ctx.createRadialGradient(i.x, i.y, rad * 0.2, i.x, i.y, rad * 3);
+      g.addColorStop(0, rgba(col, 0.45)); g.addColorStop(1, rgba(col, 0));
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(i.x, i.y, rad * 3, 0, TAU); ctx.fill();
+      ctx.beginPath(); ctx.arc(i.x, i.y, rad, 0, TAU);
+      ctx.fillStyle = col; ctx.fill();
+      ctx.lineWidth = 1.5; ctx.strokeStyle = COL.bg; ctx.stroke();
+      if (sel) {
+        ctx.beginPath(); ctx.arc(i.x, i.y, rad + 5, 0, TAU);
+        ctx.lineWidth = 1.5; ctx.strokeStyle = COL.ink; ctx.stroke();
+      }
+      if (!L.narrow || i.cat === 'goal' || sel || hov) {
+        var right = i.x < L.x + L.w * 0.72;
+        label(i.name, right ? i.x + rad + 8 : i.x - rad - 8, i.y, right ? 'left' : 'right',
+          (sel || hov) ? COL.ink : rgba(col, 0.95),
+          (sel ? '600 ' : '500 ') + (L.narrow ? 10.5 : 11.5) + 'px ' + FONT_BODY);
+      }
+    }
+  }
+
+  var last = performance.now();
+  function frame(now) {
+    var dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    if (playing) tAnim += dt;
+    for (var n = 0; n < ideas.length; n++) {
+      var i = ideas[n];
+      i.r += (targetR(i) - i.r) * Math.min(1, dt * 6);
+      if (playing) i.theta += 0.075 / Math.pow(i.r, 1.5) * dt;
+    }
+    draw();
+    requestAnimationFrame(frame);
+  }
+
+  function localPt(e) {
+    var r = canvas.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  }
+  function pick(p) {
+    var best = null, bd = Infinity;
+    ideas.forEach(function (i) {
+      var d = Math.hypot(i.x - p.x, i.y - p.y);
+      if (d <= Math.max(16, i.rad + 10) && d < bd) { best = i; bd = d; }
+    });
+    return best;
+  }
+  canvas.addEventListener('pointermove', function (e) {
+    var h = pick(localPt(e));
+    hoverId = h ? h.id : null;
+    canvas.style.cursor = h ? 'pointer' : 'default';
+  });
+  canvas.addEventListener('pointerleave', function () { hoverId = null; canvas.style.cursor = 'default'; });
+  canvas.addEventListener('click', function (e) {
+    var h = pick(localPt(e));
+    if (h) select(h.id);
+  });
+
+  /* ---------- panel ---------- */
+  var listEl = document.getElementById('list');
+  var groupShare = {};
+  var legendEls = {};
+
+  function byId(id) { for (var n = 0; n < ideas.length; n++) if (ideas[n].id === id) return ideas[n]; return null; }
+
+  function makeRow(i) {
+    var row = document.createElement('div');
+    row.className = 'row';
+    row.style.setProperty('--c', CATS[i.cat].color);
+
+    var dot = document.createElement('span'); dot.className = 'dot';
+    var name = document.createElement('button');
+    name.type = 'button'; name.className = 'name'; name.textContent = i.name;
+    name.addEventListener('click', function () { select(i.id); });
+
+    var range = document.createElement('input');
+    range.type = 'range'; range.min = '1'; range.max = '10'; range.step = '1';
+    range.id = 'w-' + i.id; range.value = String(i.w);
+    range.setAttribute('aria-label', 'Weight for ' + i.name);
+    range.addEventListener('input', function () {
+      i.w = clampW(range.value);
+      save();
+      refresh();
+    });
+    range.addEventListener('focus', function () { select(i.id); });
+
+    var share = document.createElement('span'); share.className = 'share';
+
+    var rm;
+    if (i.custom) {
+      rm = document.createElement('button');
+      rm.type = 'button'; rm.className = 'rm'; rm.textContent = '×';
+      rm.setAttribute('aria-label', 'Remove ' + i.name);
+      rm.addEventListener('click', function () {
+        ideas = ideas.filter(function (o) { return o.id !== i.id; });
+        if (selId === i.id) selId = ideas[0].id;
+        save(); buildList(); refresh();
+      });
+    } else {
+      rm = document.createElement('span');
+    }
+
+    row.appendChild(dot); row.appendChild(name); row.appendChild(range); row.appendChild(share); row.appendChild(rm);
+    i.els = { row: row, range: range, share: share };
+    return row;
+  }
+
+  function buildList() {
+    listEl.textContent = '';
+    ORDER.forEach(function (cat) {
+      var group = ideas.filter(function (i) { return i.cat === cat; });
+      if (!group.length) { groupShare[cat] = null; return; }
+      var sec = document.createElement('section');
+      sec.className = 'group';
+      var h = document.createElement('h2');
+      h.className = 'eyebrow';
+      var t = document.createElement('span'); t.textContent = CATS[cat].label;
+      var s = document.createElement('span');
+      h.appendChild(t); h.appendChild(s);
+      groupShare[cat] = s;
+      sec.appendChild(h);
+      group.forEach(function (i) { sec.appendChild(makeRow(i)); });
+      listEl.appendChild(sec);
+    });
+  }
+
+  var legend = document.getElementById('legend');
+  ORDER.forEach(function (cat) {
+    var li = document.createElement('li');
+    li.style.setProperty('--c', CATS[cat].color);
+    var sw = document.createElement('span'); sw.className = 'sw';
+    var tx = document.createElement('span');
+    li.appendChild(sw); li.appendChild(tx);
+    legend.appendChild(li);
+    legendEls[cat] = tx;
+  });
+
+  function updateStats() {
+    var total = 0, gs = { goal: 0, feeds: 0, parked: 0 };
+    ideas.forEach(function (i) { total += i.w; gs[i.cat] += i.w; });
+    ideas.forEach(function (i) { if (i.els) i.els.share.textContent = pct(i.w / total); });
+    ORDER.forEach(function (cat) {
+      if (groupShare[cat]) groupShare[cat].textContent = pct(gs[cat] / total);
+      legendEls[cat].textContent = CATS[cat].short + ' ' + pct(gs[cat] / total);
+      document.getElementById('seg-' + cat).style.width = (gs[cat] / total * 100) + '%';
+    });
+    document.getElementById('pct').textContent = pct((gs.goal + gs.feeds) / total);
+    return total;
+  }
+
+  function renderReadout(total) {
+    var i = byId(selId);
+    if (!i) return;
+    var maxW = ideas.reduce(function (m, o) { return Math.max(m, o.w); }, 1);
+    document.getElementById('rName').textContent = i.name;
+    var tag = document.getElementById('rCat');
+    tag.textContent = CATS[i.cat].short;
+    tag.style.color = CATS[i.cat].color;
+    document.getElementById('rNote').textContent = i.note;
+    document.getElementById('rWeight').textContent = i.w + ' / 10';
+    document.getElementById('rShare').textContent = pct(i.w / total);
+    document.getElementById('rBend').textContent = pct(i.w / maxW);
+  }
+
+  function refresh() {
+    var total = updateStats();
+    renderReadout(total);
+    ideas.forEach(function (i) {
+      if (i.els) i.els.row.setAttribute('aria-current', i.id === selId ? 'true' : 'false');
+    });
+  }
+
+  function select(id) {
+    if (!byId(id)) return;
+    selId = id;
+    refresh();
+  }
+
+  function setWeights(fn) {
+    ideas.forEach(function (i) {
+      i.w = clampW(fn(i));
+      if (i.els) i.els.range.value = String(i.w);
+    });
+    save();
+    refresh();
+  }
+
+  document.getElementById('btnFocus').addEventListener('click', function () {
+    setWeights(function (i) { return i.custom ? i.w : DEFAULT_W[i.id]; });
+  });
+  document.getElementById('btnEqual').addEventListener('click', function () {
+    setWeights(function () { return 5; });
+  });
+  var btnPlay = document.getElementById('btnPlay');
+  function syncPlay() { btnPlay.textContent = playing ? 'Pause orbit' : 'Play orbit'; }
+  btnPlay.addEventListener('click', function () { playing = !playing; syncPlay(); });
+  syncPlay();
+
+  document.getElementById('addForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var input = document.getElementById('newName');
+    var name = input.value.trim().slice(0, 28);
+    if (!name || ideas.length >= 24) return;
+    var k = ideas.reduce(function (m, i) { return Math.max(m, i.k); }, 0) + 1;
+    var idea = {
+      id: 'c' + Date.now().toString(36) + k, name: name, cat: document.getElementById('newCat').value,
+      w: 3, note: 'Added by you.', custom: true, k: k,
+      theta: Math.random() * TAU, r: 0, x: 0, y: 0, rad: 6, els: null
+    };
+    idea.r = targetR(idea);
+    ideas.push(idea);
+    input.value = '';
+    selId = idea.id;
+    save(); buildList(); refresh();
+  });
+
+  buildList();
+  refresh();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
